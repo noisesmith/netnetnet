@@ -20,41 +20,113 @@
   [e]
   (.log js/console e))
 
-(def app-state 
-  (atom {:count 0}))
+(def app-state
+  (-> {}
+      (assoc-in
+       [:models :blog]
+       {:id 1
+        :fields [{:type "collection"
+                  :name "posts"
+                  :target-id 2}]})
+      (assoc-in
+       [:models :blog-post]
+       {:id 2
+        :fields [{:type "part"
+                  :name "blog"
+                  :target-id 1}]})
+      atom))
 
-(defn boxy
+(defn field->rect
+  [x y width height]
+  (fn field->rect-placed
+    [j field]
+    (let [rx (+ x 3)
+          tx (+ rx 3)
+          ry (+ y 10 (* j 30))
+          ty (+ ry 15)
+          rw (- width 6)
+          tw (- rw 6)
+          rh 20
+          th (- rh 6)]
+      [[(dom/rect
+          #js {:x rx
+               :y ry
+               :width rw
+               :height rh
+               :style {}
+               :fill "#999988"
+               :strokeWidth 2
+               :stroke "#888899"})
+         (dom/text
+          #js {:x tx
+               :y ty
+               :width tw
+               :height th
+               :fill "#000000"}
+          (str (:name field)
+               (when-let [val  (:value field)]
+                 (str " " val))))]
+       ;; returning of stub for arrow goes here!
+       (when false nil)])))
+
+(defn connect-arrows
+  "this will turn tail and head halves of arrows into a single path"
+  [arrows])
+
+(defn model->rect
+  [i [namek model]]
+  (let [x (+ 100 (* i 150))
+        y 100
+        width 100
+        height 400
+        fields (conj (seq (:fields model))
+                     {:name "id" :value (:id model)}
+                     {:name (str namek)})
+        get-shapes (field->rect x y width height)
+        [shapes arrows _] (reduce (fn [[shapes arrows count] field]
+                                   (let [[s a] (get-shapes count field)]
+                                     [(concat shapes s)
+                                      (concat arrows a)
+                                      (inc count)]))
+                                 [[] 0]
+                                 fields)
+        arrows (connect-arrows arrows)]
+    (conj
+     (concat shapes arrows)
+     (dom/rect
+      #js {:x x
+           :y y
+           :width width
+           :height height
+           :style {}
+           :fill "#778277"
+           :strokeWidth "5"
+           :stroke "#827782"}))))
+
+(defn models-display
   [state owner]
   (reify
     om/IWillMount
-    (will-mount [_]
-      (js/setInterval
-       (fn []
-         (om/transact! state :count inc))
-       50))
+    (will-mount [_])
     om/IRender
-    (render [_]
+    (render [arg]
+      (log (str (:models state)))
       (dom/div
        nil
-       (dom/svg
-        #js {:width 1024
-             :height 1000}
-        (dom/rect #js {:x (* 300 (+ 1 (Math/sin (/ (:count state) 100))))
-                       :y (* 103 (+ 1 (Math/cos (/ (:count state) 69))))
-                       :width (+ 100 (* 10 (mod (/ (:count state) 200) 50)))
-                       :height (+ 20 (* 30 (mod (- 100 (/  (:count state) 133)) 31)))
-                       :style {}
-                       :fill "rgb(0,0,255)"
-                       :strokeWidth "3"
-                       :stroke "rgb(255,255,0)"}))))))
+       (apply dom/svg
+              #js {:width 1024
+                   :height 1000}
+              (apply concat
+                     (map-indexed
+                      model->rect
+                      (:models state))))))))
 
 (defn init
   [data]
-  (log "init")
   (om/root
-   boxy
+   models-display
    app-state
-   {:target (. js/document (getElementById "boxy"))}))
+   {:target (. js/document (getElementById "models"))}))
 
 (defn dispatch-message
   []
@@ -63,13 +135,12 @@
      (let [msg (<! receive)
            raw (.-data msg)
            data (reader/read-string raw)]
-       (condp = (:op data)
+       (case (:op data)
          :init (init data)
          (log (str "op not supported! " data)))))))
 
 (defn make-sender
   []
-  (log "HELLO")
   (go
    (while true
      (let [[id event data] (<! send)]
