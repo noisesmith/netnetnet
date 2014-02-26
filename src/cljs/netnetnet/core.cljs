@@ -21,17 +21,9 @@
   (.log js/console e))
 
 (def app-state 
-  (atom {:count 0
-         :list ["okay" "what" "the" "penguin"]}))
+  (atom {:count 0}))
 
-(defn widget
-  [data owner]
-  (reify
-    om/IRender
-    (render [this]
-      (dom/h1 nil (:text data)))))
-
-(defn counter
+(defn boxy
   [state owner]
   (reify
     om/IWillMount
@@ -42,25 +34,27 @@
        50))
     om/IRender
     (render [_]
-      (dom/div nil (:count state)))))
-
-(defn penguin
-  [state owner]
-  (apply 
-   dom/ul nil
-   (map (fn [x] (dom/li nil x)) (shuffle (:list state)))))
+      (dom/div
+       nil
+       (dom/svg
+        #js {:width 1024
+             :height 1000}
+        (dom/rect #js {:x (* 300 (+ 1 (Math/sin (/ (:count state) 100))))
+                       :y (* 103 (+ 1 (Math/cos (/ (:count state) 69))))
+                       :width (+ 100 (* 10 (mod (/ (:count state) 200) 50)))
+                       :height (+ 20 (* 30 (mod (- 100 (/  (:count state) 133)) 31)))
+                       :style {}
+                       :fill "rgb(0,0,255)"
+                       :strokeWidth "3"
+                       :stroke "rgb(255,255,0)"}))))))
 
 (defn init
   [data]
   (log "init")
   (om/root
-   penguin
+   boxy
    app-state
-   {:target (. js/document (getElementById "site"))})
-  (om/root
-   counter
-   app-state
-   {:target (. js/document (getElementById "counter"))}))
+   {:target (. js/document (getElementById "boxy"))}))
 
 (defn dispatch-message
   []

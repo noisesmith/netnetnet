@@ -4,7 +4,10 @@ A Clojurescript project for ... ORB
 
 ## Usage
 
-FIXME
+
+lein cljx auto
+lein cljsbuild auto
+lein run
 
 ## License
 
