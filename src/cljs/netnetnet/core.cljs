@@ -27,12 +27,14 @@
        {:id 1
         :fields [{:type "collection"
                   :name "posts"
+                  :model-id 1
                   :target-id 2}]})
       (assoc-in
        [:models :blog-post]
        {:id 2
         :fields [{:type "part"
                   :name "blog"
+                  :model-id 2
                   :target-id 1}]})
       atom))
 
@@ -67,11 +69,12 @@
                (when-let [val  (:value field)]
                  (str " " val))))]
        ;; returning of stub for arrow goes here!
-       (when false nil)])))
-
-(defn connect-arrows
-  "this will turn tail and head halves of arrows into a single path"
-  [arrows])
+       (when (contains? #{"link" "part" "collection"} (:type field))
+         [{:type (:type field)
+           :target (:target-id field)
+           :model (:model-id field)
+           :x tx
+           :y ty}])])))
 
 (defn model->rect
   [i [namek model]]
@@ -88,20 +91,44 @@
                                      [(concat shapes s)
                                       (concat arrows a)
                                       (inc count)]))
-                                 [[] 0]
-                                 fields)
-        arrows (connect-arrows arrows)]
-    (conj
-     (concat shapes arrows)
-     (dom/rect
-      #js {:x x
-           :y y
-           :width width
-           :height height
-           :style {}
-           :fill "#778277"
-           :strokeWidth "5"
-           :stroke "#827782"}))))
+                                 [() () 0]
+                                 fields)]
+    {:arrows arrows
+     :shapes (conj
+              shapes
+              (dom/rect
+               #js {:x x
+                    :y y
+                    :width width
+                    :height height
+                    :style {}
+                    :fill "#778277"
+                    :strokeWidth "5"
+                    :stroke "#827782"}))}))
+
+(defn connect-arrows
+  "this will turn tail and head halves of arrows into a single path"
+  [arrows]
+  (log (str "connecting arrows" arrows " : " (count arrows)))
+  (let [{parts "part"
+         collections "collection"
+         joins "join"} (group-by :type arrows)
+        join-up (group-by (juxt :target :model) joins)
+        pair-joins (loop [joined [] joinable join-up]
+                     (if (empty? joinable)
+                       joined
+                       (let [[[id model] join] (first joinable)
+                             [_ [joinee]] (get joinable [model id])]
+                         (recur (conj joined [join joinee])
+                                (dissoc joinable [model id] [id model])))))
+        part-of (group-by (juxt :target :model) parts)
+        collected (map (fn [coll]
+                         [coll
+                          (first (get part-of ((juxt :model :target) coll)))])
+                         collections)
+        paths nil]
+    (log (str "pair-joins " pair-joins " collected " collected))
+    paths))
 
 (defn models-display
   [state owner]
@@ -110,16 +137,21 @@
     (will-mount [_])
     om/IRender
     (render [arg]
-      (log (str (:models state)))
-      (dom/div
-       nil
-       (apply dom/svg
-              #js {:width 1024
-                   :height 1000}
-              (apply concat
-                     (map-indexed
-                      model->rect
-                      (:models state))))))))
+      (let [[shapes arrows] (reduce
+                             (fn [[shapes-acc arrows-acc count] model]
+                               (let [{:keys [shapes arrows]} (model->rect count model)]
+                                 [(concat shapes-acc shapes)
+                                  (concat arrows-acc arrows)
+                                  (inc count)]))
+                             [() () 0]
+                             (:models state))
+            shapes (concat shapes (connect-arrows arrows))]
+        (dom/div
+         nil
+         (apply dom/svg
+                #js {:width 1024
+                     :height 1000}
+                shapes))))))
 
 (defn init
   [data]
