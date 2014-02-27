@@ -68,7 +68,6 @@
           (str (:name field)
                (when-let [val  (:value field)]
                  (str " " val))))]
-       ;; returning of stub for arrow goes here!
        (when (contains? #{"link" "part" "collection"} (:type field))
          [{:type (:type field)
            :target (:target-id field)
@@ -77,10 +76,9 @@
            :y ty}])])))
 
 (defn model->rect
-  [i [namek model]]
+  [i [namek model] width]
   (let [x (+ 100 (* i 150))
         y 100
-        width 100
         height 400
         fields (conj (seq (:fields model))
                      {:name "id" :value (:id model)}
@@ -106,9 +104,25 @@
                     :strokeWidth "5"
                     :stroke "#827782"}))}))
 
+(defn make-path
+  [{x :x y :y} {x' :x y' :y} width]
+  (string/join " " ["M" (+ x width) y "L" x' y' "z"]))
+
+(defn line
+  [width]
+  (fn [pair]))
+
+(defn arrow
+  [width]
+  (fn [[a b]]
+    (let [[from to] (sort-by :x [a b])]
+      (dom/path #js {:d (make-path from to width)
+                     :strokeWidth 3
+                     :stroke "#000000"}))))
+
 (defn connect-arrows
   "this will turn tail and head halves of arrows into a single path"
-  [arrows]
+  [arrows width]
   (log (str "connecting arrows" arrows " : " (count arrows)))
   (let [{parts "part"
          collections "collection"
@@ -126,8 +140,7 @@
                          [coll
                           (first (get part-of ((juxt :model :target) coll)))])
                          collections)
-        paths nil]
-    (log (str "pair-joins " pair-joins " collected " collected))
+        paths (concat (map (line width) pair-joins) (map (arrow width) collected))]
     paths))
 
 (defn models-display
@@ -137,15 +150,16 @@
     (will-mount [_])
     om/IRender
     (render [arg]
-      (let [[shapes arrows] (reduce
+      (let [width 100
+            [shapes arrows] (reduce
                              (fn [[shapes-acc arrows-acc count] model]
-                               (let [{:keys [shapes arrows]} (model->rect count model)]
+                               (let [{:keys [shapes arrows]} (model->rect count model width)]
                                  [(concat shapes-acc shapes)
                                   (concat arrows-acc arrows)
                                   (inc count)]))
                              [() () 0]
                              (:models state))
-            shapes (concat shapes (connect-arrows arrows))]
+            shapes (concat shapes (connect-arrows arrows width))]
         (dom/div
          nil
          (apply dom/svg
