@@ -8,31 +8,31 @@
          model-padding :padding} :model
         {field-padding :padding
          field-height :height} :field}]
-  (let [rx (+ x field-padding)
-        tx (+ rx field-padding)
+  (let [body-x (+ x field-padding)
+        label-x (+ body-x field-padding)
         ;; text is placed from the bottom line
-        rw (- model-width (* 2 field-padding))
-        tw (- rw (* 2 field-padding))
-        rh field-height
-        th (- rh (* 2 field-padding))]
+        body-width (- model-width (* 2 field-padding))
+        label-width (- body-width (* 2 field-padding))
+        body-height field-height
+        label-height (- body-height (* 2 field-padding))]
     (fn field->rect-placed
       [j field]
-      (let [ry (+ y field-padding (* j (+ field-height field-padding)))
-            ty (+ ry (- field-height field-padding))]
+      (let [body-y (+ y field-padding (* j (+ field-height field-padding)))
+            label-y (+ body-y (- field-height field-padding))]
         [[(dom/rect
-           #js {:x rx
-                :y ry
-                :width rw
-                :height rh
+           #js {:x body-x
+                :y body-y
+                :width body-width
+                :height body-height
                 :style {}
                 :fill "#999988"
                 :strokeWidth 2
                 :stroke "#888899"})
           (dom/text
-           #js {:x tx
-                :y ty
-                :width tw
-                :height th
+           #js {:x label-x
+                :y label-y
+                :width label-width
+                :height label-height
                 :fill "#000000"}
            (str (:name field)
                 (when-let [val  (:value field)]
@@ -41,8 +41,8 @@
            [{:type (:type field)
              :target (:target-id field)
              :model (:model-id field)
-             :x rx
-             :y (+ ry (/ field-height 2))}])]))))
+             :x body-x
+             :y (+ body-y (/ field-height 2))}])]))))
 
 (defn model->rect
   [i [namek model] {{width :width padding :padding} :model :as opts}]
@@ -54,9 +54,10 @@
                      {:name (str namek)})
         get-shapes (field->rect x y opts)
         [shapes arrows _] (reduce (fn [[shapes arrows count] field]
-                                   (let [[s a] (get-shapes count field)]
-                                     [(concat shapes s)
-                                      (concat arrows a)
+                                   (let [[this-shape this-arrow]
+                                         (get-shapes count field)]
+                                     [(concat shapes this-shape)
+                                      (concat arrows this-arrow)
                                       (inc count)]))
                                  [() () 0]
                                  fields)]
