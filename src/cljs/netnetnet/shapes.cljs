@@ -10,7 +10,6 @@
          field-height :height} :field}]
   (let [body-x (+ x field-padding)
         label-x (+ body-x field-padding)
-        ;; text is placed from the bottom line
         body-width (- model-width (* 2 field-padding))
         label-width (- body-width (* 2 field-padding))
         body-height field-height
@@ -18,6 +17,7 @@
     (fn field->rect-placed
       [j field]
       (let [body-y (+ y field-padding (* j (+ field-height field-padding)))
+            ;; text is placed from the bottom line
             label-y (+ body-y (- field-height field-padding))]
         [[(dom/rect
            #js {:x body-x
@@ -77,7 +77,7 @@
 (defn make-path
   [{x :x y :y} {x' :x y' :y} {{width :width} :model
                               {padding :padding} :field}]
-  (string/join " " ["M" (+ x width) y "L" (- x' padding padding) y' "z"]))
+  (string/join " " ["M" (+ x width) y "L" x' y' "z"]))
 
 (defn line
   [width]
@@ -91,18 +91,60 @@
   [x y]
   (/ -1 (slope x y)))
 
+(defn make-arrowhead
+  [{{padding :padding} :field} invert]
+  (let [x 0
+        x' (* 4 padding)]
+    (if invert
+      (string/join " " ["M" x padding
+                        "L" x (- padding)
+                        "L" x' 0
+                        "L" x padding
+                        "z"])
+      (string/join " " ["M" x (- padding)
+                        "L" x padding
+                        "L" (- x') 0
+                        "L" x (- padding)
+                        "z"]))))
+
+(defn reverse-rotate
+  [from to]
+  (* (/ 180 Math/PI) (Math/atan (slope from to))))
+
 (defn arrow
   [opts]
-  (fn [[a b]]
-    (let [[from to] (sort-by :x [a b])]
-      (dom/path #js {:d (make-path from to opts)
-                     :strokeWidth 3
-                     :stroke "#000000"}))))
+  (fn [[from to]]
+    (util/log (str "arrow from: " (select-keys a [:x :y]) " to " (select-keys b [:x :y])))
+    (let [padding (-> opts :field :padding)
+          x-dest (- (:x to) padding padding)
+          y-dest (:y to)]
+      [(dom/path #js {:d (make-path from {:x x-dest :y y-dest} opts)
+                       :strokeWidth 3
+                       :stroke "#ffffff"})
+       (dom/g #js {:transform (str "translate(" x-dest "," y-dest ")")}
+              (dom/path #js {:d (make-arrowhead opts (<= (:x from) (:x to)))
+                             :transform (str "rotate(" (reverse-rotate from to) " 0 0)")
+                             :fill "#ffffff"}))])))
+
+(defn debug-impl
+  []
+  (dom/div
+   nil
+   (apply dom/svg
+          #js {:width 500
+               :height 500}
+          (mapcat (fn [i]
+                    ((arrow {:field {:padding 3}
+                             :model {:width 0}})
+                     [{:x 250
+                       :y 250}
+                      {:x (+ 250 (* 100 (Math/sin (/ i 10))))
+                       :y (+ 250 (* 100 (Math/cos (/ i 10))))}]))
+                  (range (inc (int (* Math/PI 2 10))))))))
 
 (defn connect-arrows
   "this will turn tail and head halves of arrows into a single path"
   [arrows opts]
-  (util/log (str "connecting arrows" arrows " : " (count arrows)))
   (let [{{width :width} :model} opts
         {parts "part"
          collections "collection"
@@ -121,7 +163,7 @@
                           (first (get part-of ((juxt :model :target) coll)))])
                          collections)
         paths (concat (map (line width) pair-joins)
-                      (map (arrow opts) collected))]
+                      (mapcat (arrow opts) collected))]
     paths))
 
 (defn models
