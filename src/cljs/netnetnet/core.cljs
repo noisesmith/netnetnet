@@ -16,7 +16,8 @@
 (def ws (new js/WebSocket ws-url))
 
 (def app-state
-  (atom {:opts {:canvas {:width 2000
+  (atom {:tick 0
+         :opts {:canvas {:width 2000
                          :height 1000}
                 :model {:width 100
                         :padding 50}
@@ -96,17 +97,21 @@
   [state owner]
   (reify
     om/IWillMount
-    (will-mount [_])
+    (will-mount [_]
+      (js/setInterval
+       (fn [] (om/transact! state :ticks inc))
+       10))
     om/IRender
     (render [arg]
-      (shapes/debug-impl))))
+      (util/log "ticking ticking ticking")
+      (shapes/debug-impl (:ticks state)))))
 
 (defn init
   [data]
-  (om/root
-   debug
-   app-state
-   {:target (. js/document (getElementById "debug"))})
+  #_ (om/root
+      debug
+      app-state
+      {:target (. js/document (getElementById "debug"))})
   (om/root
    models-display
    app-state

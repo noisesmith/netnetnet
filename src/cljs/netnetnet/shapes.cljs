@@ -75,9 +75,8 @@
                     :stroke "#827782"}))}))
 
 (defn make-path
-  [{x :x y :y} {x' :x y' :y} {{width :width} :model
-                              {padding :padding} :field}]
-  (string/join " " ["M" (+ x width) y "L" x' y' "z"]))
+  [{x :x y :y} {x' :x y' :y}]
+  (string/join " " ["M" x y "L" x' y' "z"]))
 
 (defn line
   [width]
@@ -85,49 +84,52 @@
 
 (defn slope
   [{x :x y :y} {x' :x y' :y}]
-  (/ (- y' y) (- x' x)))
+  (double (/ (- y' y) (- x' x))))
 
 (defn antislope
   [x y]
   (/ -1 (slope x y)))
 
 (defn make-arrowhead
-  [{{padding :padding} :field} invert]
-  (let [x 0
-        x' (* 4 padding)]
-    (if invert
-      (string/join " " ["M" x padding
-                        "L" x (- padding)
-                        "L" x' 0
-                        "L" x padding
-                        "z"])
-      (string/join " " ["M" x (- padding)
-                        "L" x padding
-                        "L" (- x') 0
-                        "L" x (- padding)
-                        "z"]))))
+  [{x0 :x y0 :y :as from} {x :x y :y :as to} {{padding :padding} :field :as opts}]
+  (util/log (str "making head to: " to " opts: " opts))
+  (string/join " " ["M" x (+ y padding)
+                    "L" x (- y padding)
+                    "L" (+ x (* 4 padding)) y
+                    "L" x (+ y padding)
+                    "z"]))
+
+(defn rad->degrees
+  [x]
+  (* (/ 180 Math/PI) x))
 
 (defn reverse-rotate
   [from to]
-  (* (/ 180 Math/PI) (Math/atan (slope from to))))
+  (let [dy (- (:y to) (:y from))
+        dx (- (:x to) (:x from))]
+    (rad->degrees (Math/atan2 dy dx))))
 
 (defn arrow
   [opts]
   (fn [[from to]]
-    (util/log (str "arrow from: " (select-keys a [:x :y]) " to " (select-keys b [:x :y])))
+    (util/log (str "arrow from: " (select-keys from [:x :y]) " to " (select-keys to [:x :y])))
     (let [padding (-> opts :field :padding)
           x-dest (- (:x to) padding padding)
-          y-dest (:y to)]
-      [(dom/path #js {:d (make-path from {:x x-dest :y y-dest} opts)
+          y-dest (:y to)
+          dest {:x x-dest :y y-dest}
+          x-src (+ (:x from) (-> opts :model :width))
+          y-src (:y from)
+          src {:x x-src :y y-src}]
+      [(dom/path #js {:d (make-path src dest)
                        :strokeWidth 3
                        :stroke "#ffffff"})
-       (dom/g #js {:transform (str "translate(" x-dest "," y-dest ")")}
-              (dom/path #js {:d (make-arrowhead opts (<= (:x from) (:x to)))
-                             :transform (str "rotate(" (reverse-rotate from to) " 0 0)")
-                             :fill "#ffffff"}))])))
+       (dom/path #js {:d (make-arrowhead src dest opts)
+                      :transform (str "rotate(" (reverse-rotate src dest)
+                                      " " x-dest " " y-dest ")")
+                      :fill "#ffffff"})])))
 
 (defn debug-impl
-  []
+  [ticks]
   (dom/div
    nil
    (apply dom/svg
@@ -135,11 +137,13 @@
                :height 500}
           (mapcat (fn [i]
                     ((arrow {:field {:padding 3}
-                             :model {:width 0}})
+                             :model {:width 100}})
                      [{:x 250
                        :y 250}
-                      {:x (+ 250 (* 100 (Math/sin (/ i 10))))
-                       :y (+ 250 (* 100 (Math/cos (/ i 10))))}]))
+                      {:x (+ 350 (* 100 (Math/sin  (/ (+ (/ ticks 18) i)
+                                                      10))))
+                       :y (+ 250 (* 100 (Math/cos (/ (+ (/ ticks 18) i)
+                                                     10))))}]))
                   (range (inc (int (* Math/PI 2 10))))))))
 
 (defn connect-arrows
